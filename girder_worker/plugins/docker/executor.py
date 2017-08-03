@@ -7,7 +7,7 @@ from requests.exceptions import ReadTimeout
 
 from girder_worker import logger
 from girder_worker.core import TaskSpecValidationError, utils
-from girder_worker.core.io import make_stream_fetch_adapter, make_stream_push_adapter
+from girder_worker.io import make_stream_fetch_adapter, make_stream_push_adapter
 from girder_worker.plugins.docker.stream_adapter import DockerStreamPushAdapter
 
 DATA_VOLUME = '/mnt/girder_worker/data'

@@ -3,7 +3,7 @@ import json
 import glob
 import os
 import math
-from girder_worker.core.io import fetch
+from girder_worker.io import fetch
 import networkx as nx
 from collections import namedtuple
 from networkx.algorithms.shortest_paths.generic import all_shortest_paths

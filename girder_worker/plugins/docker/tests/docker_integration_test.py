@@ -11,7 +11,8 @@ import threading
 import time
 
 import girder_worker
-from girder_worker.core import run, io
+from girder_worker.core import run
+from girder_worker import io
 
 TEST_IMAGE = 'girder/girder_worker_test:latest'
 

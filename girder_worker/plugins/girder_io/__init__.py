@@ -188,6 +188,6 @@ def push_handler(data, spec, **kwargs):
 
 
 def load(params):
-    from girder_worker.core import io
+    from girder_worker import io
     io.register_fetch_handler('girder', fetch_handler)
     io.register_push_handler('girder', push_handler)

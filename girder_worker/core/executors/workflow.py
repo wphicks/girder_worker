@@ -1,5 +1,6 @@
 def run(task, inputs, outputs, task_inputs, task_outputs, **kwargs):  # noqa
-    from girder_worker.core import events, io, run as core_run, utils
+    from girder_worker.core import events, run as core_run, utils
+    from girder_worker import io
 
     # Make map of steps
     steps = {step['name']: step for step in task['steps']}
@@ -116,7 +117,7 @@ def run(task, inputs, outputs, task_inputs, task_outputs, **kwargs):  # noqa
             elif value['format'] == vis_input['format']:
                 data = script_output['data']
                 if 'mode' in value:
-                    girder_worker.core.io.push(data, value)
+                    girder_worker.io.push(data, value)
                 else:
                     vis_bindings[b] = {
                         'type': vis_input['type'],

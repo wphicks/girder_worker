@@ -1,5 +1,5 @@
 import events
-import io
+from girder_worker import io
 import json
 import os
 

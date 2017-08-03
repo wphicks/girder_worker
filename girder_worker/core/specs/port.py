@@ -2,7 +2,7 @@
 
 import six
 
-from girder_worker.core import io
+from girder_worker import io
 from girder_worker.plugins.types import convert, isvalid, format
 from .spec import Spec
 
