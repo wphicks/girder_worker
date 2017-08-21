@@ -48,6 +48,8 @@ class CeleryTestEndpoints(Resource):
                    self.test_celery_girder_client_generation)
         self.route('POST', ('test_girder_client_bad_token_fails', ),
                    self.test_celery_girder_client_bad_token_fails)
+        self.route('POST', ('test_task_chained', ),
+                   self.test_celery_task_chained)
 
     # Testing custom job option API for celery tasks
 
@@ -191,3 +193,20 @@ class CeleryTestEndpoints(Resource):
             blocker.revoke()
 
         return result.job
+
+    @access.token
+    @filtermodel(model='job', plugin='jobs')
+    @describeRoute(
+        Description('Test chained celery tasks')
+    )
+    def test_celery_task_chained(self, params):
+        jobModel = ModelImporter.model('job', 'jobs')
+        user = self.getCurrentUser()
+        # F(F(F(6))) --> F(F(8)) --> F(21) --> 10946
+        result = (fibonacci.s(6) | fibonacci.s() | fibonacci.s()).delay()
+        result.wait(timeout=2)
+        job_1 = result.job
+        job_2 = jobModel.load(job_1['parentId'], user=user)
+        job_3 = jobModel.load(job_2['parentId'], user=user)
+
+        return [job_1, job_2, job_3]

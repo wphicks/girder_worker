@@ -104,3 +104,38 @@ def test_celery_task_revoke_in_queue(session):
     with session.wait_for_canceled(r.json()['_id']) as job:
         assert [ts['status'] for ts in job['timestamps']] == \
             [JobStatus.CANCELED]
+
+def test_celery_chained_tasks(session):
+    url = 'integration_tests/celery/test_task_chained'
+    r = session.post(url)
+    assert r.status_code == 200, r.content
+    jobs = r.json()
+
+    # Check the if the args are correct
+    assert sorted([i['args'][0] for i in jobs]) == [6, 8, 21]
+
+    # Check jobinfospec is attached
+    assert all('jobInfoSpec' in i for i in jobs)
+
+    # Check girder tokens are different on jobinfospec
+    tokens = [i['jobInfoSpec']['headers']['Girder-Token'] for i in jobs]
+    assert len(tokens) == len(set(tokens))
+
+    # Check if parent id's are correctly set
+    assert jobs[2]['parentId'] is None
+    assert jobs[1]['parentId'] == jobs[2]['_id']
+    assert jobs[0]['parentId'] == jobs[1]['_id']
+
+
+def test_celery_chained_tasks_tokens(session):
+    url = 'integration_tests/celery/test_task_chained_tokens'
+    r = session.post(url)
+    assert r.status_code == 200, r.content
+    jobs = r.json()
+
+    # 2 jobs should not share the tokens since we explicitly
+    # specified a different token for the second job
+
+    token_1 = jobs[0]['jobInfoSpec']['headers']['Girder-Token']
+    token_2 = jobs[1]['jobInfoSpec']['headers']['Girder-Token']
+    assert token_1 != token_2
