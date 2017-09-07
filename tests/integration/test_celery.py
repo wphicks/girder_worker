@@ -105,6 +105,7 @@ def test_celery_task_revoke_in_queue(session):
         assert [ts['status'] for ts in job['timestamps']] == \
             [JobStatus.CANCELED]
 
+
 def test_celery_chained_tasks(session):
     url = 'integration_tests/celery/test_task_chained'
     r = session.post(url)

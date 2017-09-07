@@ -11,6 +11,7 @@ from celery.result import AsyncResult
 
 from celery.task.control import inspect
 
+import json
 from six.moves import configparser
 import sys
 from .utils import JobStatus, StateTransitionException
@@ -61,7 +62,8 @@ class Task(celery.Task):
     # transfered into the headers of the message.
     reserved_headers = [
         'girder_client_token',
-        'girder_api_url']
+        'girder_api_url',
+        'girder_parent_id']
 
     # These keys will be available in the 'properties' dictionary inside
     # girder_before_task_publish() but will not be passed along in the message
@@ -130,10 +132,32 @@ class Task(celery.Task):
         return self.run.call_item_task(inputs, outputs)
 
 
-@before_task_publish.connect
+@before_task_publish.connect # noqa
 def girder_before_task_publish(sender=None, body=None, exchange=None,
                                routing_key=None, headers=None, properties=None,
                                declare=None, retry_policy=None, **kwargs):
+
+    def _setArgToChainedTasks(arg, val):
+        # Helper function which sets a value to chained child tasks
+        chainedTasks = body[2].get('chain')
+        if chainedTasks:
+            for i in chainedTasks:
+                if arg not in i.kwargs.keys():
+                    i.kwargs[arg] = val
+
+    def _getToken():
+        """Helper function to get the token"""
+        from girder.utility.model_importer import ModelImporter
+        from girder.api.rest import getCurrentUser
+        token_model = ModelImporter.model('token')
+        scope = 'jobs.rest.create_job'
+        try:
+            token = token_model.createToken(scope=scope, user=user)
+        except NameError:
+            token = token_model.createToken(scope=scope, user=getCurrentUser())
+
+        return token
+
     if 'jobInfoSpec' not in headers:
         try:
             # Note: If we can import these objects from the girder packages we
@@ -144,7 +168,6 @@ def girder_before_task_publish(sender=None, body=None, exchange=None,
             from girder.utility.model_importer import ModelImporter
             from girder.plugins.worker import utils
             from girder.api.rest import getCurrentUser
-
             job_model = ModelImporter.model('job', 'jobs')
 
             user = headers.pop('girder_user', getCurrentUser())
@@ -161,19 +184,32 @@ def girder_before_task_publish(sender=None, body=None, exchange=None,
                    'otherFields': dict(celeryTaskId=headers['id'],
                                        **headers.pop('girder_job_other_fields',
                                                      Task._girder_job_other_fields))})
-
             headers['jobInfoSpec'] = utils.jobInfoSpec(job)
 
         except ImportError:
-            # TODO: Check for self.job_manager to see if we have
-            #       tokens etc to contact girder and create a job model
-            #       we may be in a chain or a chord or some-such
-            pass
+            gc = GirderClient(apiUrl=headers['girder_api_url'])
+            gc.token = headers['girder_client_token']
+            task_args, task_kwargs = body[0], body[1]
+            parameters = {
+                'title': headers.pop('girder_job_title', Task._girder_job_title),
+                'type': headers.pop('girder_job_type', Task._girder_job_type),
+                'handler': headers.pop('girder_job_handler', Task._girder_job_handler),
+                'public': headers.pop('girder_job_public', Task._girder_job_public),
+                'args': json.dumps(task_args),
+                'kwargs': task_kwargs,
+                'otherFields': json.dumps(dict(celeryTaskId=headers['id'],
+                                               celeryParentTaskId=headers['parent_id'],
+                                               **headers.pop('girder_job_other_fields',
+                                                             Task._girder_job_other_fields)))
+            }
+            job = gc.post('job', parameters=parameters)
+            headers['jobInfoSpec'] = job['jobInfoSpec']
 
     if 'girder_api_url' not in headers:
         try:
             from girder.plugins.worker import utils
             headers['girder_api_url'] = utils.getWorkerApiUrl()
+            _setArgToChainedTasks('girder_api_url', headers['girder_api_url'])
         except ImportError:
             # TODO: handle situation where girder_worker is producing the message
             #       Note - this may not come up at all depending on how we pass
@@ -183,8 +219,9 @@ def girder_before_task_publish(sender=None, body=None, exchange=None,
 
     if 'girder_client_token' not in headers:
         try:
-            from girder.utility.model_importer import ModelImporter
-            headers['girder_client_token'] = ModelImporter.model('token').createToken()
+            token = _getToken()
+            headers['girder_client_token'] = token['_id']
+            _setArgToChainedTasks('girder_client_token', headers['girder_client_token'])
         except ImportError:
             # TODO: handle situation where girder_worker is producing the message
             #       Note - this may not come up at all depending on how we pass
@@ -239,8 +276,7 @@ def _update_status(task, status):
     # For now,  only automatically update status if this is
     # not a child task. Otherwise child tasks completion will
     # update the parent task's jobModel in girder.
-    if task.request.parent_id is None:
-        task.job_manager.updateStatus(status)
+    task.job_manager.updateStatus(status)
 
 
 @task_prerun.connect
