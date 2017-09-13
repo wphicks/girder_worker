@@ -52,18 +52,15 @@ class TestSignals(unittest.TestCase):
     @mock.patch('girder.utility.model_importer.ModelImporter')
     @mock.patch('girder.api.rest.getCurrentUser')
     def test_girder_before_task_publish_with_jobinfospec_no_job_created(self, gcu, mi):
-
         inputs = dict(sender='test.task',
                       # args, kwargs, options
                       body=[(), {}, {}],
                       headers=self.headers)
 
         create_job = mi.model.return_value.createJob
-
         with mock_worker_plugin_utils():
             girder_before_task_publish(**inputs)
-
-        self.assertTrue(not gcu.called)
+        gcu.assert_called_once()
         self.assertTrue(not create_job.called)
 
     @mock.patch('girder.utility.model_importer.ModelImporter')
