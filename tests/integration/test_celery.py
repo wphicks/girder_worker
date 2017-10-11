@@ -126,17 +126,3 @@ def test_celery_chained_tasks(session):
     assert jobs[2]['parentId'] is None
     assert jobs[1]['parentId'] == jobs[2]['_id']
     assert jobs[0]['parentId'] == jobs[1]['_id']
-
-
-def test_celery_chained_tasks_tokens(session):
-    url = 'integration_tests/celery/test_task_chained_tokens'
-    r = session.post(url)
-    assert r.status_code == 200, r.content
-    jobs = r.json()
-
-    # 2 jobs should not share the tokens since we explicitly
-    # specified a different token for the second job
-
-    token_1 = jobs[0]['jobInfoSpec']['headers']['Girder-Token']
-    token_2 = jobs[1]['jobInfoSpec']['headers']['Girder-Token']
-    assert token_1 != token_2
